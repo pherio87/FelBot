@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FelBot — informazioni sul crawler</title>
+<style>
+  body { font: 16px/1.6 system-ui, sans-serif; max-width: 42rem; margin: 3rem auto; padding: 0 1.25rem; color: #1d2329; }
+  h1 { font-size: 1.6rem; margin-bottom: .25rem; }
+  .sub { color: #5b6670; margin-top: 0; }
+  code, pre { font-family: ui-monospace, monospace; background: #f2f4f6; border-radius: 4px; }
+  code { padding: .1em .35em; }
+  pre { padding: .8rem 1rem; overflow-x: auto; }
+  li { margin: .3rem 0; }
+  form { display: grid; gap: .6rem; margin-top: 1rem; }
+  label { font-size: .9rem; color: #5b6670; display: grid; gap: .2rem; }
+  input, textarea { font: inherit; padding: .5rem .6rem; border: 1px solid #c9d0d6; border-radius: 6px; }
+  textarea { min-height: 8rem; resize: vertical; }
+  button { justify-self: start; font: inherit; padding: .5rem 1.1rem; border: 0; border-radius: 6px; background: #1d4e89; color: #fff; cursor: pointer; }
+  button:disabled { opacity: .6; cursor: default; }
+  #esito { min-height: 1.5rem; }
+  .hp { position: absolute; left: -9999px; }
+</style>
+</head>
+<body>
+<h1>FelBot</h1>
+<p class="sub">Crawler di un assistente documentale non ufficiale sulla formazione professionale e il lavoro</p>
+
+<p>Se trovate <code>FelBot</code> nei log del vostro server, si tratta di un crawler che raccoglie
+documentazione pubblica (delibere, determinazioni, avvisi, manuali, modulistica) per un
+assistente di consultazione a uso di un piccolo gruppo di persone. Non è un servizio della
+Regione Emilia-Romagna né di altri enti pubblici.</p>
+
+<h2>Come si comporta</h2>
+<ul>
+  <li>Rispetta <code>robots.txt</code>, compreso <code>Crawl-delay</code>; un <code>robots.txt</code> irraggiungibile è trattato come divieto.</li>
+  <li>Non supera 1,5 richieste al secondo su 3 connessioni e rallenta da sé su HTTP 429.</li>
+  <li>Usa richieste condizionali (<code>If-None-Match</code>, <code>If-Modified-Since</code>) e scarica di nuovo solo ciò che è cambiato.</li>
+  <li>Esegue un aggiornamento notturno e una scansione completa alla settimana, di notte.</li>
+  <li>Non scarica graduatorie, elenchi di ammessi o altri documenti con nominativi di persone.</li>
+</ul>
+
+<h2>Come limitarlo o escluderlo</h2>
+<p>Basta una regola in <code>robots.txt</code>, che viene riletta ogni 24 ore:</p>
+<pre>User-agent: FelBot
+Disallow: /</pre>
+<p>Per rallentarlo, invece del divieto: <code>Crawl-delay: 5</code> (secondi fra una richiesta e l'altra).</p>
+
+<h2>Contatti</h2>
+<p>Per segnalazioni sul comportamento del crawler, o per chiedere di escludere un sito o una sezione:</p>
+<form id="contatto">
+  <label>Il vostro indirizzo email <input type="email" name="email" required maxlength="200" autocomplete="email"></label>
+  <label>Ente o sito interessato (facoltativo) <input type="text" name="ente" maxlength="200"></label>
+  <label>Messaggio <textarea name="messaggio" required maxlength="4000"></textarea></label>
+  <!-- campo trappola per i bot: resta vuoto per le persone -->
+  <label class="hp" aria-hidden="true">Non compilare <input type="text" name="sito_web" tabindex="-1" autocomplete="off"></label>
+  <div class="cf-turnstile" data-sitekey="__TURNSTILE_SITEKEY__"></div>
+  <button type="submit">Invia</button>
+  <p id="esito" role="status"></p>
+</form>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<script>
+document.getElementById('contatto').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = e.target, btn = f.querySelector('button'), esito = document.getElementById('esito');
+  btn.disabled = true; esito.textContent = 'Invio in corso…';
+  try {
+    const r = await fetch('/api/contatto', { method: 'POST', body: new FormData(f) });
+    if (r.ok) { f.reset(); esito.textContent = 'Messaggio inviato. Grazie: risponderò all\'indirizzo indicato.'; }
+    else { esito.textContent = 'Invio non riuscito (' + r.status + '). Riprovate fra qualche minuto.'; }
+  } catch { esito.textContent = 'Invio non riuscito: problema di rete.'; }
+  btn.disabled = false;
+  if (window.turnstile) turnstile.reset();
+});
+</script>
+</body>
+</html>

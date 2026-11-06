@@ -1,0 +1,56 @@
+# Due servizi sullo stesso volume: il web risponde, lo scheduler aggiorna.
+# La scansione completa settimanale e' l'unica che rileva i documenti ritirati
+# dal portale: nella 1.1 lo scheduler lanciava solo l'incrementale, e un atto
+# ritirato restava a indice per sempre.
+# Le ingestioni sono serializzate da un lock su /data/ingest.lock, quindi un
+# avvio manuale non puo' sovrapporsi a quello notturno.
+
+x-comune: &comune
+  build: .
+  restart: unless-stopped
+  env_file: .env
+  environment:
+    FLER_DATA_DIR: /data
+    TZ: Europe/Rome
+  volumes:
+    - ./data:/data
+  # il container apre documenti arbitrari scaricati da internet
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
+  # senza rotazione i log riempiono il disco del VPS in qualche mese, e il
+  # guasto si presenta come un errore di I/O di SQLite, non come disco pieno
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "5" }
+
+services:
+  web:
+    <<: *comune
+    container_name: fler-web
+    mem_limit: 1500m
+    ports:
+      - "127.0.0.1:8080:8080"   # davanti ci sta Caddy/nginx con HTTPS
+
+  scheduler:
+    <<: *comune
+    container_name: fler-scheduler
+    # OCR e LibreOffice durante l'ingestione: senza tetto l'OOM killer del
+    # kernel potrebbe scegliere il container web, o sshd
+    mem_limit: 2500m
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      'echo "scheduler avviato (fuso $$TZ): incrementale alle 04:30, completa la domenica";
+       while true; do
+         if [ "$$(date +%H%M)" = "0430" ]; then
+           if [ "$$(date +%u)" = "7" ]; then
+             echo "[$$(date -Is)] domenica: scansione completa (rimozioni e verifica)";
+             fler ingest --full || echo "[$$(date -Is)] SCANSIONE COMPLETA FALLITA";
+           else
+             echo "[$$(date -Is)] avvio aggiornamento incrementale";
+             fler ingest || echo "[$$(date -Is)] AGGIORNAMENTO FALLITO";
+           fi;
+           fler stato;
+           sleep 3600;
+         fi;
+         sleep 50;
+       done'

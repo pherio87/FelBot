@@ -1,0 +1,33 @@
+# --- HTTP / raccolta ---
+httpx[http2]==0.27.2
+tenacity==9.0.0
+PyYAML==6.0.2
+lxml==5.3.0
+selectolax==0.3.21
+
+# --- estrazione testo ---
+pymupdf==1.24.11          # PDF: testo, layout, numeri di pagina
+python-docx==1.1.2        # DOCX
+odfpy==1.4.1              # ODT / ODS / ODP
+openpyxl==3.1.5           # XLSX
+xlrd==2.0.1               # XLS storici
+striprtf==0.0.28          # RTF
+pytesseract==0.3.13       # OCR di riserva (richiede tesseract-ocr + pacchetto ita)
+pillow==10.4.0
+
+# --- indicizzazione ---
+lancedb==0.13.0
+pyarrow==17.0.0
+numpy==1.26.4
+
+# --- modelli ---
+anthropic==0.39.0
+openai==1.54.4
+
+# --- servizio ---
+fastapi==0.115.4
+slowapi==0.1.9            # limiti di frequenza su login e chat
+uvicorn[standard]==0.32.0
+pydantic==2.9.2
+pydantic-settings==2.6.1
+python-pptx==1.0.2

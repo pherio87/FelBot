@@ -1,0 +1,21 @@
+# HTTPS automatico davanti al servizio. Sostituire il nome a dominio.
+assistente.example.net {
+    encode gzip
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "same-origin"
+    }
+
+    # un corpo senza tetto puo' esaurire la memoria del VPS in una richiesta
+    request_body {
+        max_size 256KB
+    }
+
+    reverse_proxy 127.0.0.1:8080 {
+        # lo streaming della risposta richiede buffering disattivato
+        flush_interval -1
+    }
+}

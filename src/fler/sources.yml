@@ -1,0 +1,64 @@
+# ─────────────────────────────────────────────────────────────
+# Fonti da indicizzare.
+#
+# kind: plone   -> usa la REST API di Plone (enumerazione completa e affidabile)
+#       sitemap -> segue sitemap.xml / sitemap_index.xml
+#       crawl   -> crawling HTML classico entro i prefissi consentiti
+#
+# `enabled: false` = fonte predisposta ma da attivare dopo verifica di
+# robots.txt e condizioni d'uso del portale.
+# ─────────────────────────────────────────────────────────────
+
+sources:
+  - id: formazionelavoro
+    kind: plone
+    enabled: true
+    base_url: https://formazionelavoro.regione.emilia-romagna.it
+    label: Formazione e Lavoro — Regione Emilia-Romagna
+    authority: primaria
+    # tipi Plone da ignorare (non portano contenuto normativo)
+    skip_types: [Image, Folder, Plone Site, LIF, Link]
+    note: >
+      Fonte primaria. REST API anonima verificata: ~21.300 oggetti,
+      di cui ~8.800 allegati (File).
+
+  - id: burert
+    kind: sitemap
+    enabled: false
+    base_url: https://bur.regione.emilia-romagna.it
+    label: Bollettino Ufficiale Telematico (BURERT)
+    authority: primaria
+    note: >
+      Pubblicazione ufficiale di delibere e determine. ATTIVARE solo dopo
+      verifica di robots.txt: il volume e' molto alto, valutare di limitarsi
+      alle parti di interesse (Parte Seconda/Terza, materia formazione).
+
+  - id: sifer
+    kind: crawl
+    enabled: false
+    base_url: https://sifer.regione.emilia-romagna.it
+    label: SIFER — Sistema Informativo Formazione Emilia-Romagna
+    authority: operativa
+    allow_prefixes: ["/sifer/manuali", "/sifer/documenti"]
+    note: >
+      Manualistica operativa SIFER. Gran parte del sistema e' dietro
+      autenticazione: indicizzare solo l'area pubblica.
+
+  - id: ermesagricoltura_lavoro
+    kind: sitemap
+    enabled: false
+    base_url: https://www.regione.emilia-romagna.it
+    label: Portale istituzionale Regione Emilia-Romagna (sezioni lavoro)
+    authority: secondaria
+    allow_prefixes: ["/notizie/attualita/lavoro", "/temi/lavoro"]
+    note: Attivare solo se serve copertura di notizie istituzionali.
+
+  - id: agenzialavoro
+    kind: sitemap
+    enabled: false
+    base_url: https://www.agenzialavoro.emr.it
+    label: Agenzia regionale per il lavoro Emilia-Romagna
+    authority: primaria
+    note: >
+      Centri per l'impiego, politiche attive, tirocini. Consigliata come
+      seconda fonte da attivare dopo il collaudo su formazionelavoro.

@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fler"
+version = "1.2.0"
+description = "Assistente documentale ancorato alla documentazione Formazione e Lavoro della Regione Emilia-Romagna"
+requires-python = ">=3.11"
+dynamic = ["dependencies"]
+
+[project.scripts]
+fler = "fler.cli:main"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+fler = ["web/*.html", "sources.yml"]
