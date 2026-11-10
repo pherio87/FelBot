@@ -1,0 +1,58 @@
+{
+  // FelBot — Worker della chat, della pagina /bot e del modulo di contatto.
+  // Configurazione completa in worker/README.md, sezione "Primo deploy".
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "felbot",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+
+  // Raggiungibile SOLO dal dominio personalizzato, dietro Cloudflare Access.
+  // Un indirizzo *.workers.dev attivo aggirerebbe Access: resta spento.
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "felbot.pherio.net", "custom_domain": true }],
+
+  // Ogni richiesta passa prima dal Worker, che controlla l'identita' anche
+  // sulle pagine statiche (difesa in profondita' oltre ad Access).
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": true, "html_handling": "none" },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "felbot",
+      // da sostituire con l'id restituito da: npx wrangler d1 create felbot
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // creato con: npx wrangler vectorize create felbot-chunks --dimensions=1024 --metric=cosine
+  "vectorize": [{ "binding": "VECTORS", "index_name": "felbot-chunks" }],
+  "ai": { "binding": "AI" },
+
+  // Modulo di contatto della pagina /bot. Il destinatario NON e' qui ma nel
+  // segreto CONTATTO_DESTINATARIO, per non scrivere la tua casella nel codice;
+  // deve essere un indirizzo verificato in Email Routing su pherio.net.
+  "send_email": [{ "name": "EMAIL" }],
+
+  "vars": {
+    "ACCESS_TEAM": "",                 // es. "pherio" per pherio.cloudflareaccess.com
+    "ACCESS_AUD": "",                  // "Application Audience (AUD) Tag" dell'app Access
+    "LLM_MODEL": "claude-sonnet-5-5",
+    "LLM_MODEL_RIFORMULA": "claude-haiku-5-5",
+    "LLM_MAX_TOKENS": "2000",
+    "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+    "EMBED_MODEL": "@cf/baai/bge-m3",
+    "TOP_K": "40",
+    "CONTEXT_CHUNKS": "14",
+    // Stima iniziale per bge-m3, NON una misura: va tarata (README, "Soglia").
+    "MIN_RELEVANCE": "0.50",
+    "LIMITE_GIORNALIERO_UTENTE": "60",
+    "LIMITE_GIORNALIERO_TOTALE": "300",
+    "TURNSTILE_SITEKEY": "",
+    "CONTATTO_MITTENTE": "felbot@pherio.net"
+  },
+  // Segreti (npx wrangler secret put NOME):
+  //   ANTHROPIC_API_KEY, TURNSTILE_SECRET, CONTATTO_DESTINATARIO
+
+  "observability": { "enabled": true }
+}

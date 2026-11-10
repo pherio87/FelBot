@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FelBot — Assistente Formazione e Lavoro</title>
+<meta name="robots" content="noindex">
+<style>
+:root{
+  --bg:#f6f6f4; --panel:#fff; --ink:#1c1b19; --muted:#6b6863; --line:#e2e0db;
+  --accent:#0a5c36; --accent-soft:#e8f1ec; --warn:#8a5a00; --warn-soft:#fdf4e3;
+  --danger:#8c2f21; --radius:10px;
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#161715;--panel:#1e201d;--ink:#e9e7e2;--muted:#9a968e;--line:#32352f;
+        --accent:#7fc7a0;--accent-soft:#1f2d26;--warn:#d9ad5e;--warn-soft:#2c2518;--danger:#e0846f;}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+     font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1px solid var(--line);
+       padding:10px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+header h1{font-size:15px;margin:0;font-weight:650;letter-spacing:-.01em}
+header .sub{font-size:12.5px;color:var(--muted)}
+#stato{margin-left:auto;font-size:12px;color:var(--muted);font-family:var(--mono)}
+main{max-width:1180px;margin:0 auto;padding:20px 18px 160px;display:grid;
+     grid-template-columns:minmax(0,1fr) 330px;gap:22px;align-items:start}
+@media(max-width:900px){main{grid-template-columns:1fr}#pannello{order:-1}}
+.msg{margin-bottom:22px}
+.msg .who{font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:5px}
+.msg.user .bolla{background:var(--accent-soft);border:1px solid var(--line);
+     padding:11px 14px;border-radius:var(--radius);display:inline-block;max-width:100%}
+.msg.bot .bolla{background:var(--panel);border:1px solid var(--line);
+     padding:15px 17px;border-radius:var(--radius)}
+.bolla p{margin:0 0 .7em}.bolla p:last-child{margin-bottom:0}
+.bolla ul,.bolla ol{margin:.4em 0 .8em;padding-left:1.3em}
+.bolla li{margin:.25em 0}
+cite-ref{display:inline-block;min-width:20px;text-align:center;font-size:11px;font-weight:650;
+  font-family:var(--mono);background:var(--accent-soft);color:var(--accent);
+  border:1px solid var(--line);border-radius:5px;padding:0 4px;margin:0 1px;cursor:pointer;
+  vertical-align:baseline;position:relative;top:-1px}
+cite-ref:hover{background:var(--accent);color:var(--panel)}
+.meta{margin-top:12px;padding-top:10px;border-top:1px solid var(--line);
+      display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--muted)}
+.badge{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);font-weight:600}
+.b-alta{background:var(--accent-soft);color:var(--accent)}
+.b-media{background:transparent;color:var(--muted)}
+.b-bassa,.b-rifiuto,.b-nessuna{background:var(--warn-soft);color:var(--warn)}
+.avviso{background:var(--warn-soft);border:1px solid var(--line);border-left:3px solid var(--warn);
+   color:var(--warn);padding:8px 11px;border-radius:6px;font-size:12.5px;margin-top:10px}
+#pannello{position:sticky;top:66px;background:var(--panel);border:1px solid var(--line);
+   border-radius:var(--radius);max-height:calc(100vh - 96px);overflow:auto}
+#pannello h2{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
+   margin:0;padding:12px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel)}
+.fonte{padding:11px 14px;border-bottom:1px solid var(--line);font-size:13px}
+.fonte:last-child{border-bottom:none}
+.fonte.attiva{background:var(--accent-soft)}
+.fonte .n{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--accent);
+   background:var(--accent-soft);border:1px solid var(--line);border-radius:5px;padding:0 5px;margin-right:6px}
+.fonte a{color:var(--ink);text-decoration:none;font-weight:600}
+.fonte a:hover{text-decoration:underline;text-decoration-color:var(--accent)}
+.fonte .info{color:var(--muted);font-size:11.5px;margin-top:4px;font-family:var(--mono)}
+.fonte .snip{color:var(--muted);font-size:12px;margin-top:6px;max-height:0;overflow:hidden;transition:max-height .2s}
+.fonte.aperta .snip{max-height:260px;overflow:auto}
+.fonte .tog{font-size:11px;color:var(--accent);cursor:pointer;margin-top:5px;display:inline-block}
+.non-citata{opacity:.55}
+.tag{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+  padding:1px 5px;border-radius:4px;margin-left:5px;vertical-align:1px;white-space:nowrap}
+.t-scaduto{background:var(--warn-soft);color:var(--warn);border:1px solid var(--warn)}
+.t-ocr{background:transparent;color:var(--muted);border:1px solid var(--line)}
+#stato.vecchio{color:var(--warn);font-weight:600}
+footer{position:fixed;bottom:0;left:0;right:0;background:linear-gradient(transparent,var(--bg) 22%);
+   padding:26px 18px 16px}
+form{max-width:1180px;margin:0 auto;display:flex;gap:9px;align-items:flex-end}
+textarea{flex:1;resize:none;font:inherit;padding:11px 13px;border:1px solid var(--line);
+   border-radius:var(--radius);background:var(--panel);color:var(--ink);min-height:46px;max-height:180px}
+textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
+button{font:inherit;font-weight:600;padding:11px 18px;border-radius:var(--radius);
+   border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer}
+button:disabled{opacity:.45;cursor:default}
+.hint{max-width:1180px;margin:7px auto 0;font-size:11.5px;color:var(--muted);text-align:center}
+.vuoto{color:var(--muted);padding:24px 0}
+.vuoto h3{font-size:16px;color:var(--ink);margin:0 0 8px}
+.esempi{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px}
+.esempi button{background:var(--panel);color:var(--ink);border:1px solid var(--line);
+   font-weight:500;font-size:13px;padding:7px 12px}
+.esempi button:hover{border-color:var(--accent)}
+.punti::after{content:'';animation:p 1.2s steps(4,end) infinite}
+@keyframes p{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>FelBot · Assistente Formazione e Lavoro</h1>
+    <div class="sub">Strumento non ufficiale: risponde solo con quanto pubblicato dalla Regione Emilia-Romagna</div>
+  </div>
+  <div id="stato">—</div>
+</header>
+
+<main>
+  <div id="chat">
+    <div class="vuoto" id="benvenuto">
+      <h3>Chiedi qualcosa alla documentazione regionale</h3>
+      <p>Ogni risposta cita gli estratti da cui proviene. Se la documentazione indicizzata
+         non contiene la risposta, l'assistente lo dice invece di inventarla.</p>
+      <div class="esempi">
+        <button>Quali requisiti servono per l'accreditamento di un organismo di formazione?</button>
+        <button>Come si gestisce la formalizzazione delle competenze in esito ai tirocini?</button>
+        <button>Cosa prevede la DGR 1298/2015?</button>
+        <button>Quante ore di stage sono previste nei percorsi IeFP?</button>
+      </div>
+    </div>
+  </div>
+
+  <aside id="pannello">
+    <h2>Fonti dell'ultima risposta</h2>
+    <div id="fonti"><div class="fonte" style="color:var(--muted)">Nessuna ancora.</div></div>
+  </aside>
+</main>
+
+<footer>
+  <form id="f">
+    <textarea id="q" rows="1" placeholder="Scrivi la domanda…  (Invio per inviare, Maiusc+Invio per andare a capo)"></textarea>
+    <button type="submit" id="invia">Chiedi</button>
+  </form>
+  <div class="hint">Strumento non ufficiale, non collegato alla Regione Emilia-Romagna. Verifica sempre sulle fonti prima di usare una risposta in un atto o in una comunicazione ufficiale.<br>
+    Il testo delle domande non viene conservato, ma viene inviato al fornitore del modello per generare la risposta: non inserire nomi o altri dati personali. · <a href="/bot" style="color:inherit">FelBot e il crawler</a></div>
+</footer>
+
+<script>
+const chat=document.getElementById('chat'), pannello=document.getElementById('fonti');
+const form=document.getElementById('f'), ta=document.getElementById('q'), btn=document.getElementById('invia');
+let storia=[], ultimeFonti=[], ultimoQid=null;
+
+ta.addEventListener('input',()=>{ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,180)+'px'});
+ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();form.requestSubmit()}});
+document.querySelectorAll('.esempi button').forEach(b=>b.onclick=()=>{ta.value=b.textContent;form.requestSubmit()});
+
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// gli URL provengono da documenti di terzi: si ammettono solo http/https
+const safeUrl=u=>/^https?:\/\//i.test(u||'')?u:'#';
+
+function rendi(t){
+  let h=esc(t);
+  h=h.replace(/\[(\d{1,2})\]/g,'<cite-ref data-n="$1">$1</cite-ref>');
+  h=h.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  const righe=h.split('\n'); let out='',lista=null;
+  for(const r of righe){
+    const m=r.match(/^\s*([-•*]|\d+\.)\s+(.*)$/);
+    if(m){const tipo=/\d/.test(m[1])?'ol':'ul';
+      if(lista!==tipo){if(lista)out+=`</${lista}>`;out+=`<${tipo}>`;lista=tipo}
+      out+=`<li>${m[2]}</li>`;
+    }else{
+      if(lista){out+=`</${lista}>`;lista=null}
+      if(r.trim())out+=`<p>${r}</p>`;
+    }
+  }
+  if(lista)out+=`</${lista}>`;
+  return out;
+}
+
+function mostraFonti(fonti,citate){
+  ultimeFonti=fonti;
+  if(!fonti.length){pannello.innerHTML='<div class="fonte" style="color:var(--muted)">Nessuna fonte pertinente.</div>';return}
+  pannello.innerHTML=fonti.map(s=>{
+    const usata=!citate||citate.includes(s.n);
+    const info=[s.date||null,s.page?'pag. '+s.page:null,s.portal_type,s.section].filter(Boolean).join(' · ');
+    const tag=[];
+    if(s.expired)tag.push('<span class="tag t-scaduto">scaduto</span>');
+    if(s.unpublished)tag.push('<span class="tag t-scaduto">non pubblicato</span>');
+    if(s.via_ocr)tag.push('<span class="tag t-ocr">da OCR</span>');
+    return `<div class="fonte ${usata?'':'non-citata'}" id="fonte-${s.n}">
+      <span class="n">${s.n}</span><a href="${esc(safeUrl(s.download_url||s.url))}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a>
+      ${tag.join('')}
+      <div class="info">${esc(info)}</div>
+      <span class="tog" data-n="${s.n}">mostra estratto</span>
+      <div class="snip">${esc(s.snippet)}</div>
+    </div>`}).join('');
+  pannello.querySelectorAll('.tog').forEach(t=>t.onclick=()=>{
+    const d=document.getElementById('fonte-'+t.dataset.n);
+    d.classList.toggle('aperta');
+    t.textContent=d.classList.contains('aperta')?'nascondi estratto':'mostra estratto';
+  });
+}
+
+document.addEventListener('click',e=>{
+  const c=e.target.closest('cite-ref'); if(!c)return;
+  const d=document.getElementById('fonte-'+c.dataset.n); if(!d)return;
+  document.querySelectorAll('.fonte.attiva').forEach(x=>x.classList.remove('attiva'));
+  d.classList.add('attiva'); d.classList.add('aperta');
+  d.scrollIntoView({behavior:'smooth',block:'center'});
+});
+
+function bolla(cls,who,html){
+  const b=document.getElementById('benvenuto'); if(b)b.remove();
+  const d=document.createElement('div'); d.className='msg '+cls;
+  d.innerHTML=`<div class="who">${who}</div><div class="bolla">${html}</div>`;
+  chat.appendChild(d); window.scrollTo(0,document.body.scrollHeight); return d;
+}
+
+form.onsubmit=async e=>{
+  e.preventDefault();
+  const q=ta.value.trim(); if(!q)return;
+  ta.value=''; ta.style.height='auto'; btn.disabled=true;
+  bolla('user','Tu',esc(q).replace(/\n/g,'<br>'));
+  const nodo=bolla('bot','Assistente','<span class="punti">ricerca nei documenti</span>');
+  const corpo=nodo.querySelector('.bolla');
+
+  try{
+    const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({question:q,history:storia.slice(-6)})});
+    if(!r.ok){
+      const msg=r.status===403?'Sessione scaduta: ricarica la pagina per accedere di nuovo.':(await r.text());
+      corpo.innerHTML='<p style="color:var(--danger)">'+esc(msg)+'</p>';btn.disabled=false;return}
+    const reader=r.body.getReader(), dec=new TextDecoder();
+    let buf='',testo='',fonti=[];
+    while(true){
+      const {done,value}=await reader.read(); if(done)break;
+      buf+=dec.decode(value,{stream:true});
+      const parti=buf.split('\n\n'); buf=parti.pop();
+      for(const p of parti){
+        const ev=(p.match(/^event: (.*)$/m)||[])[1];
+        const dt=(p.match(/^data: ([\s\S]*)$/m)||[])[1];
+        if(!ev||!dt)continue;
+        const payload=JSON.parse(dt);
+        if(ev==='sources'){fonti=payload;mostraFonti(fonti,null)}
+        if(ev==='delta'){testo+=payload;corpo.innerHTML=rendi(testo);window.scrollTo(0,document.body.scrollHeight)}
+        // il testo definitivo e' quello passato dalla verifica: puo' differire
+        // da quanto trasmesso in streaming (riferimenti inesistenti marcati,
+        // riga sulla vigenza aggiunta)
+        if(ev==='final'){testo=payload;corpo.innerHTML=rendi(testo)}
+        if(ev==='qid'){ultimoQid=payload.query_id}
+        if(ev==='done'){
+          corpo.innerHTML=rendi(testo);
+          mostraFonti(fonti,payload.cited);
+          const cls='b-'+(payload.confidence||'media');
+          let m=`<div class="meta"><span class="badge ${cls}">affidabilità: ${payload.confidence}</span>
+                 <span>${(payload.cited||[]).length} di ${fonti.length} estratti citati</span>
+                 <span>${payload.latency}s</span></div>`;
+          (payload.warnings||[]).forEach(w=>m+=`<div class="avviso">${esc(w)}</div>`);
+          corpo.insertAdjacentHTML('beforeend',m);
+          storia.push({role:'user',content:q},{role:'assistant',content:testo});
+          aggiornaStato();
+        }
+      }
+    }
+  }catch(err){
+    corpo.innerHTML='<p style="color:var(--danger)">Errore di comunicazione con il servizio: '+esc(String(err))+'</p>';
+  }
+  btn.disabled=false; ta.focus();
+};
+
+// stato dell'indice e uso personale
+function aggiornaStato(){fetch('/api/stato').then(r=>r.ok?r.json():Promise.reject(r.status)).then(s=>{
+  const el=document.getElementById('stato');
+  const agg=(s.ultimo_aggiornamento||'').slice(0,10);
+  el.textContent=`${(s.indicizzati||0).toLocaleString('it-IT')} documenti · agg. ${agg||'mai'} · domande oggi ${s.domande_oggi}/${s.limite_giornaliero}`;
+  el.classList.remove('vecchio');
+  // un indice fermo non ha altri sintomi: va detto qui, o nessuno se ne accorge
+  const giorni=agg?(Date.now()-new Date(agg))/86400000:999;
+  if(giorni>4){el.classList.add('vecchio');
+    el.title='L\'indice non risulta aggiornato da '+Math.floor(giorni)+' giorni: verificare il servizio di aggiornamento.';
+    el.textContent+='  ⚠';}
+}).catch(()=>{document.getElementById('stato').textContent='stato non disponibile'})}
+aggiornaStato();
+</script>
+</body>
+</html>

@@ -1,3 +1,14 @@
+# FelBot — assistente documentale su Formazione e Lavoro
+
+> Strumento non ufficiale, non collegato alla Regione Emilia-Romagna.
+>
+> Il repository ha due parti:
+> - **`worker/`** — il servizio online su Cloudflare (chat, ricerca, verifica
+>   delle risposte, pagina `/bot`). Istruzioni in `worker/README.md`.
+> - **cartella principale** — il crawler e l'indicizzazione, in Python. Il
+>   resto di questo documento descrive questa parte e la versione originale
+>   su VPS, da cui deriva la logica del Worker.
+
 # Assistente documentale — Formazione e Lavoro, Regione Emilia-Romagna
 
 Un assistente che risponde **soltanto** con quanto la Regione Emilia-Romagna ha
