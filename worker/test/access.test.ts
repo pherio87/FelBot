@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { _resetCache, verifyAccessJwt } from "../src/access";
-import { componiEmail, valida } from "../src/contatto";
+import { componiEmail, gestisciContatto, valida } from "../src/contatto";
 
 const enc = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
 const cfg = { team: "pherio", aud: "aud-felbot" };
@@ -77,5 +77,11 @@ describe("modulo di contatto", () => {
     const [testa, corpo] = raw.split("\r\n\r\n");
     expect(testa.split("\r\n").every((l) => /^[A-Za-z-]+: /.test(l))).toBe(true);
     expect(Buffer.from(corpo.replace(/\r\n/g, ""), "base64").toString("utf8")).toContain("Rallentate il crawler");
+  });
+  it("corpo che non e' un modulo → 400, non un'eccezione", async () => {
+    const env = { TURNSTILE_SECRET: "s", CONTATTO_DESTINATARIO: "dest@example.org" } as any;
+    const req = new Request("https://felbot.pherio.net/api/contatto", {
+      method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    expect((await gestisciContatto(req, env)).status).toBe(400);
   });
 });

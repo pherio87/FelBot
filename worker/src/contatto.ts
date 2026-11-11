@@ -78,7 +78,9 @@ export async function gestisciContatto(request: Request, env: ContattoEnv): Prom
   if (!env.TURNSTILE_SECRET || !env.CONTATTO_DESTINATARIO)
     return risposta(503, "Modulo di contatto non ancora configurato.");
 
-  const form = await request.formData();
+  // un corpo che non e' un modulo fa lanciare formData(): 400, non un errore 500
+  const form = await request.formData().catch(() => null);
+  if (!form) return risposta(400, "richiesta non valida");
   const v = valida(form);
   // al bot che ha compilato la trappola si risponde "ok": non deve imparare nulla
   if ("errore" in v) return v.trappola ? risposta(200, "ok") : risposta(400, v.errore);
