@@ -56,9 +56,10 @@ npx wrangler vectorize create felbot-chunks --dimensions=1024 --metric=cosine
 
 - *Add an application* → Self-hosted, dominio `felbot.pherio.net`, policy
   **Allow** con le email autorizzate, metodo di accesso *One-time PIN*.
-- Due applicazioni in più, sullo stesso dominio, con policy **Bypass** su
-  *Everyone*: una con percorso `bot`, una con percorso `api/contatto`. Sono la
-  pagina pubblica sul crawler e il suo modulo.
+- Una seconda applicazione Self-hosted con due hostname, `felbot.pherio.net`
+  con percorso `bot` e `felbot.pherio.net` con percorso `api/contatto`, e
+  policy **Bypass** su *Everyone*. Sono la pagina pubblica sul crawler e il
+  suo modulo; il percorso più specifico prevale sull'applicazione principale.
 - Dall'applicazione principale copiare l'*Application Audience (AUD) Tag* in
   `ACCESS_AUD`; il nome del team (la parte prima di `.cloudflareaccess.com`)
   in `ACCESS_TEAM`.
