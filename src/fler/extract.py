@@ -461,7 +461,10 @@ _MAIN = (
 
 
 def extract_html(data: bytes | str) -> Extraction:
-    from selectolax.parser import HTMLParser
+    try:
+        from selectolax.parser import HTMLParser
+    except ImportError:  # selectolax >= 1.0 ha rimosso il motore Modest
+        from selectolax.lexbor import LexborHTMLParser as HTMLParser
 
     out = Extraction(method="selectolax")
     html = data.decode("utf-8", "replace") if isinstance(data, bytes) else data

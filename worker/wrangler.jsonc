@@ -52,7 +52,25 @@
     "CONTATTO_MITTENTE": "felbot@pherio.net"
   },
   // Segreti (npx wrangler secret put NOME):
-  //   ANTHROPIC_API_KEY, TURNSTILE_SECRET, CONTATTO_DESTINATARIO
+  //   ANTHROPIC_API_KEY, TURNSTILE_SECRET, CONTATTO_DESTINATARIO,
+  //   AMMINISTRATORI (email che possono avviare il crawler)
+
+  // Crawler: container Python con OCR e LibreOffice (Dockerfile.crawler nella
+  // cartella principale). Una sola istanza, in Europa vicino al portale.
+  "containers": [
+    {
+      "class_name": "Crawler",
+      "image": "../Dockerfile.crawler",
+      "image_build_context": "..",
+      "instance_type": "standard-3",
+      "max_instances": 1,
+      "constraints": { "regions": ["WEUR", "EEUR"] }
+    }
+  ],
+  "durable_objects": { "bindings": [{ "name": "CRAWLER", "class_name": "Crawler" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Crawler"] }],
+  // UTC. Ogni 10 minuti: prosegue il giro in corso. 03:30: apre il giro notturno.
+  "triggers": { "crons": ["*/10 * * * *", "30 3 * * *"] },
 
   "observability": { "enabled": true }
 }

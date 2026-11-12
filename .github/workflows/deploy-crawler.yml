@@ -1,0 +1,60 @@
+# Pubblica Worker + container del crawler.
+#
+# Il container si costruisce con Docker, che c'e' sui runner di GitHub ma
+# potrebbe non esserci nell'ambiente di Workers Builds. Workers Builds
+# pubblica il Worker a ogni push con --containers-rollout=none; questo
+# workflow pubblica anche il container quando cambia il codice del crawler,
+# oppure a mano da Actions -> "Deploy crawler" -> Run workflow.
+#
+# Segreti del repository: CLOUDFLARE_API_TOKEN (permessi: Workers Scripts,
+# Containers, D1, Vectorize, Workers AI — modifica) e CLOUDFLARE_ACCOUNT_ID.
+name: Deploy crawler
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile.crawler
+      - requirements-crawler.txt
+      - src/fler/**
+      - worker/src/crawler.ts
+      - worker/src/interno.ts
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-crawler
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: npm ci
+      - run: npm test
+      - name: Verifiche del crawler (Python)
+        working-directory: .
+        run: |
+          pip install -q -r requirements-crawler.txt
+          python tests/test_offline.py
+      - name: Migrazioni D1
+        run: npx wrangler d1 migrations apply felbot --remote
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Deploy di Worker e container
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
