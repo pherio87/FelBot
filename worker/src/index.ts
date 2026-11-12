@@ -7,8 +7,18 @@
  *     GET  /            chat
  *     GET  /api/stato   stato dell'indice e uso personale
  *     POST /api/chat    domanda -> risposta in streaming (SSE)
+ *     GET  /admin       solo AMMINISTRATORI: pagina del crawler
+ *     /api/crawler/...  solo AMMINISTRATORI: stato, attivazione, lotto di prova
+ *
+ * Attivita' programmate (UTC): ogni 10 minuti il crawler prosegue il giro in
+ * corso; alle 03:30 (04:30 o 05:30 in Italia) ne apre uno nuovo, completo la
+ * domenica. Il crawler parte solo dopo l'attivazione esplicita (kv
+ * crawler_attivo), cosi' il primo giro e' sempre una prova controllata.
  */
+import { getContainer } from "@cloudflare/containers";
 import { verifyAccessJwt } from "./access";
+import type { Crawler } from "./crawler";
+import { gestisciInterno } from "./interno";
 import { gestisciContatto, type ContattoEnv } from "./contatto";
 import { complete, stream, type LlmEnv } from "./llm";
 import { isConfident, Retriever, type RetrieveEnv } from "./retrieve";
@@ -23,9 +33,18 @@ export interface Env extends RetrieveEnv, LlmEnv, ContattoEnv {
   LIMITE_GIORNALIERO_UTENTE: string;
   LIMITE_GIORNALIERO_TOTALE: string;
   TURNSTILE_SITEKEY: string;
+  CRAWLER: DurableObjectNamespace<Crawler>;
+  /** email separate da virgola: possono avviare e fermare il crawler (segreto) */
+  AMMINISTRATORI?: string;
   /** solo sviluppo locale (.dev.vars): utente fittizio quando Access non c'e' */
   DEV_UTENTE?: string;
 }
+
+export { Crawler } from "./crawler";
+// necessario all'intercettazione delle richieste in uscita dal container
+export { ContainerProxy } from "@cloudflare/containers";
+
+const CRON_NOTTE = "30 3 * * *";
 
 const SICUREZZA: Record<string, string> = {
   "x-content-type-options": "nosniff",
@@ -77,6 +96,11 @@ export default {
     }
     if (p === "/robots.txt") return testo(200, "User-agent: *\nDisallow: /\nAllow: /bot\n");
 
+    // solo sviluppo locale: il catalogo del crawler esposto per le prove
+    // end-to-end senza container. In produzione ACCESS_AUD e' impostato e
+    // questa rotta non esiste.
+    if (p.startsWith("/__interno/") && env.DEV_UTENTE && !env.ACCESS_AUD) return gestisciInterno(request, env);
+
     // ------------------------------------------------------------ riservato
     const email = await utente(request, env);
     if (!email) return testo(403, "Accesso riservato.");
@@ -85,9 +109,75 @@ export default {
       { "cache-control": "no-store" });
     if (p === "/api/stato" && request.method === "GET") return stato(env, email);
     if (p === "/api/chat" && request.method === "POST") return chat(request, env, ctx, email);
+    if (p.startsWith("/api/crawler/")) return amministrazione(request, env, email, p);
+    if (p === "/admin" && request.method === "GET") {
+      if (!amministratori(env).includes(email)) return testo(403, "Riservato all'amministratore.");
+      return conIntestazioni(await asset(env, request, "/admin.html"), { "cache-control": "no-store" });
+    }
     return testo(404, "Non trovato.");
   },
+  async scheduled(event, env, ctx) {
+    const attivo = await env.DB.prepare("SELECT v FROM kv WHERE k = 'crawler_attivo'").first<{ v: string }>();
+    if (attivo?.v !== "1") return;
+    const modo = event.cron === CRON_NOTTE ? "notte" : "continua";
+    ctx.waitUntil(lotto(env, { modo }).then((r) => console.log(`crawler (${modo}):`, r)));
+  },
 } satisfies ExportedHandler<Env>;
+
+// ------------------------------------------------------------------ crawler
+const amministratori = (env: Env) =>
+  (env.AMMINISTRATORI || env.DEV_UTENTE || "").toLowerCase().split(",").map((x) => x.trim()).filter(Boolean);
+
+async function lotto(env: Env, corpo: Record<string, unknown>): Promise<string> {
+  try {
+    const r = await getContainer(env.CRAWLER, "unico").fetch(new Request("http://container/lotto", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(corpo),
+    }));
+    return await r.text();
+  } catch (e) {
+    console.error("crawler non raggiungibile", String(e));
+    return JSON.stringify({ errore: String(e) });
+  }
+}
+
+async function amministrazione(request: Request, env: Env, email: string, p: string): Promise<Response> {
+  if (!amministratori(env).includes(email)) return testo(403, "Riservato all'amministratore.");
+
+  if (p === "/api/crawler/stato" && request.method === "GET") {
+    const [kv, perStato, giri] = await env.DB.batch([
+      env.DB.prepare("SELECT k, v FROM kv"),
+      env.DB.prepare("SELECT status, COUNT(*) AS n FROM documents WHERE gone = 0 GROUP BY status"),
+      env.DB.prepare("SELECT started, finished, kind, outcome, stats_json FROM runs ORDER BY run_id DESC LIMIT 5"),
+    ]);
+    let container: unknown = null;
+    if (new URL(request.url).searchParams.has("container")) {
+      try {
+        const r = await getContainer(env.CRAWLER, "unico").fetch(new Request("http://container/stato"));
+        container = await r.json();
+      } catch (e) { container = { errore: String(e) }; }
+    }
+    return jsonResp({
+      kv: Object.fromEntries((kv.results as { k: string; v: string }[]).map((r) => [r.k, r.v])),
+      documenti_per_stato: Object.fromEntries((perStato.results as { status: string; n: number }[]).map((r) => [r.status, r.n])),
+      ultimi_giri: giri.results, container,
+    });
+  }
+  if (request.method !== "POST") return testo(405, "Metodo non ammesso.");
+  const corpo = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+
+  if (p === "/api/crawler/attiva") {
+    const attivo = corpo.attivo === true ? "1" : "0";
+    await env.DB.prepare("INSERT INTO kv (k, v) VALUES ('crawler_attivo', ?1) ON CONFLICT(k) DO UPDATE SET v = excluded.v")
+      .bind(attivo).run();
+    return jsonResp({ crawler_attivo: attivo === "1" });
+  }
+  if (p === "/api/crawler/lotto") {
+    // lotto manuale, anche a crawler disattivato: e' cosi' che si fa la prova
+    const limite = Math.min(Math.max(Number(corpo.limite) || 200, 1), 2000);
+    return jsonResp(JSON.parse(await lotto(env, { modo: "prova", limite })));
+  }
+  return testo(404, "Non trovato.");
+}
 
 // ------------------------------------------------------------------ stato
 async function stato(env: Env, email: string): Promise<Response> {

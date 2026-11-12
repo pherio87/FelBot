@@ -14,7 +14,10 @@ from typing import Any, AsyncIterator
 from urllib.parse import urldefrag, urljoin, urlparse
 
 from lxml import etree
-from selectolax.parser import HTMLParser
+try:
+    from selectolax.parser import HTMLParser
+except ImportError:  # selectolax >= 1.0 ha rimosso il motore Modest
+    from selectolax.lexbor import LexborHTMLParser as HTMLParser
 
 from ..fetcher import Fetcher
 

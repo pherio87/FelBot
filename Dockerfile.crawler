@@ -1,0 +1,29 @@
+# FelBot — crawler per Cloudflare Containers.
+#
+# Stessi strumenti di estrazione del Dockerfile su VPS (OCR italiano,
+# LibreOffice per i .doc binari), ma nessun dato persistente: il catalogo sta
+# in D1 e l'indice vettoriale in Vectorize, raggiunti attraverso il Worker.
+FROM --platform=linux/amd64 python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        tesseract-ocr tesseract-ocr-ita \
+        antiword catdoc \
+        libreoffice-writer-nogui \
+        tzdata ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY requirements-crawler.txt ./
+RUN pip install --no-cache-dir -r requirements-crawler.txt
+
+# il pacchetto si usa dal sorgente: pyproject.toml legge le dipendenze da
+# requirements.txt (quelle della versione su VPS), che qui non servono
+COPY src/ ./src/
+
+# Il processo apre allegati arbitrari scaricati da internet: non come root.
+RUN useradd --uid 10001 --create-home fler && chown -R fler:fler /app
+USER fler
+
+ENV PYTHONUNBUFFERED=1 PYTHONPATH=/app/src TZ=Europe/Rome FLER_DATA_DIR=/tmp/fler
+EXPOSE 8080
+CMD ["uvicorn", "fler.servizio:app", "--host", "0.0.0.0", "--port", "8080"]

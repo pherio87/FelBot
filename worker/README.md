@@ -24,6 +24,9 @@ lo legge.
 | `src/valori.ts` | importi, date, durate, numeri in lettere: estrazione e confronto |
 | `src/access.ts` | verifica del token di Cloudflare Access |
 | `src/contatto.ts` | modulo di contatto: trappola, Turnstile, limite, email |
+| `src/crawler.ts` | classe del container del crawler, intercettazione di `felbot.interno` |
+| `src/interno.ts` | catalogo per il crawler: coda, frammenti, embedding, rimozioni, giri |
+| `public/admin.html` | pagina `/admin`: stato del crawler, lotto di prova, attivazione |
 | `migrations/` | schema D1, condiviso con il crawler |
 
 `valori.ts` e `verify.ts` sono il porting della versione Python; i test
@@ -88,9 +91,12 @@ collegare `pherio87/felbot`, con:
 |---|---|
 | Root directory | `worker` |
 | Build command | `npm ci && npm test` |
-| Deploy command | `npx wrangler d1 migrations apply felbot --remote && npx wrangler deploy` |
+| Deploy command | `npx wrangler d1 migrations apply felbot --remote && npx wrangler deploy --containers-rollout=none` |
 
-Da qui ogni push su `main` esegue i test e, se passano, pubblica.
+Da qui ogni push su `main` esegue i test e, se passano, pubblica il Worker.
+`--containers-rollout=none` serve perche' il container si costruisce con
+Docker, che l'ambiente di Workers Builds potrebbe non avere: il container lo
+pubblica GitHub Actions (vedi "Crawler").
 
 **7. Tetto di spesa** — sulla console Anthropic un limite mensile. In più,
 facoltativo: un gateway in AI Gateway con limite di spesa, e il suo URL
@@ -123,11 +129,51 @@ più economico) sono variabili: si cambiano senza toccare il codice. La
 temperatura è 0; se un modello non accetta il parametro, il Worker se ne
 accorge alla prima richiesta e lo omette.
 
-## Cosa manca
+## Crawler
 
-Il **crawler su Cloudflare Containers**: oggi il crawler Python scrive su
-SQLite e LanceDB in locale. Va adattato per scrivere in D1 e Vectorize (lo
-schema è già quello in `migrations/`, con `vec_id` = SHA-1 del `chunk_id`
-perché Vectorize accetta id di massimo 64 byte) e lanciato a lotti da un
-trigger programmato. Finché non c'è, l'indice è vuoto e ogni domanda
-produce un'astensione.
+Il crawler Python (cartella principale) gira in un container Cloudflare
+(`Dockerfile.crawler`) e non tocca mai il database direttamente: chiama
+`http://felbot.interno/...`, un indirizzo che non esiste su internet. La
+classe `Crawler` intercetta quelle richieste e le passa a `interno.ts`, dentro
+il Worker, che scrive in D1, calcola i vettori con Workers AI e li salva in
+Vectorize. Niente token, niente rotte pubbliche.
+
+```
+ attivita' programmata ──► Worker ──► container (Python)
+   ogni 10 min: continua               │  scarica dal portale, estrae, OCR,
+   03:30 UTC: giro notturno            │  esclude gli elenchi nominativi
+                                       ▼
+                       http://felbot.interno/... ──► interno.ts ──► D1, Vectorize, Workers AI
+```
+
+Un **giro** (completo la domenica e al primo avvio, incrementale le altre
+notti) dura molti **lotti**: il primo censisce il portale, poi ogni lotto
+prende in carico fino a 200 documenti con una scadenza di due ore. Se il
+container si ferma a meta', alla scadenza i documenti tornano in coda da soli.
+Il giro si chiude quando la coda e' vuota; il punto di ripartenza
+dell'incrementale avanza solo se il giro e' riuscito per intero. Le regole
+(cosa riscaricare, rimozioni solo se il portale risponde 404, esclusione dei
+documenti nominativi) sono quelle della v1.2, provate end-to-end in
+`tests/e2e_locale`.
+
+### Primo avvio
+
+1. **Pagina `/bot` raggiungibile**: e' il link che il portale vede nei log.
+2. **Amministratore**: `npx wrangler secret put AMMINISTRATORI` con la tua
+   email (piu' email separate da virgola).
+3. **Deploy command di Workers Builds** con `--containers-rollout=none` (sopra).
+4. **Segreti su GitHub** (Settings → Secrets and variables → Actions):
+   `CLOUDFLARE_API_TOKEN` (token con permessi di modifica su Workers Scripts,
+   Containers, D1, Vectorize, Workers AI) e `CLOUDFLARE_ACCOUNT_ID`.
+   Poi Actions → **Deploy crawler** → *Run workflow*: costruisce l'immagine e
+   pubblica Worker e container.
+5. **`/admin` → Lotto di prova** con 200 documenti. La prima volta censisce
+   l'intero portale (qualche minuto), poi elabora i 200. Controllare
+   documenti per stato (molti `empty` = estrazione da tarare; molti `error` =
+   problemi di rete o di formato) e fare qualche domanda in chat.
+6. **`/admin` → Attiva**. Da qui il crawler prosegue da solo: la prima
+   indicizzazione completa richiede 12–25 ore (l'OCR e' la parte lenta),
+   4–5 GB scaricati a 1,5 richieste al secondo.
+
+Il crawler si ferma con **Disattiva**: le attivita' programmate continuano a
+partire ma non fanno nulla. Un giro interrotto riprende da dove era.
